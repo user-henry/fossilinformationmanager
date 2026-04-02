@@ -21,6 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
       - name: Create config.js
         run: |
           echo "// 自动生成的配置文件 - 部署时注入" > config.js
@@ -30,6 +35,9 @@ jobs:
           echo "    GITHUB_TOKEN: '${{ secrets.TOKEN }}'" >> config.js
           echo "};" >> config.js
           echo "console.log('✅ 配置已加载');" >> config.js
+      
+      - name: Verify config.js
+        run: cat config.js
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
