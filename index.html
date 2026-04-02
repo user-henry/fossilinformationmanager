@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化石信息管理器 | Fossil Information Manager</title>
+    <style>
+        /* 样式保持不变，和之前一样 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+        .header h1 { font-size: 42px; color: #ffd700; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .header p { color: #ccc; font-size: 18px; }
+        .fossil-icon { font-size: 60px; margin-bottom: 10px; }
+        .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .card h2 { color: #1a1a2e; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #ffd700; display: inline-block; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+        input, textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus { outline: none; border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255,215,0,0.2); }
+        textarea { resize: vertical; min-height: 100px; }
+        button {
+            background: linear-gradient(135deg, #ffd700 0%, #ffb347 100%);
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255,215,0,0.3); }
+        .query-section { display: flex; gap: 10px; margin-bottom: 20px; }
+        .query-section input { flex: 1; }
+        .query-section button { width: auto; padding: 12px 25px; }
+        .query-result { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-top: 15px; border-left: 4px solid #ffd700; }
+        .fossil-list { max-height: 500px; overflow-y: auto; }
+        .fossil-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .fossil-item:hover { background: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .fossil-id {
+            display: inline-block;
+            background: #ffd700;
+            color: #1a1a2e;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .fossil-name { font-size: 20px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+        .fossil-description { color: #666; line-height: 1.5; margin-bottom: 10px; }
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            width: auto;
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+        }
+        .delete-btn:hover { background: #c82333; transform: translateY(-2px); }
+        .loading { text-align: center; padding: 40px; color: #ccc; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        .message.success { background: #28a745; }
+        .message.error { background: #dc3545; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            .two-columns { grid-template-columns: 1fr; gap: 20px; }
+            .header h1 { font-size: 28px; }
+            .fossil-icon { font-size: 40px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="fossil-icon">🦴</div>
+            <h1>Fossil Information Manager</h1>
+            <p>管理您的化石收藏 · 永久保存 · 随时查询</p>
+        </div>
+
+        <div class="two-columns">
+            <div class="card">
+                <h2>📤 上传新化石</h2>
+                <form id="uploadForm">
+                    <div class="form-group">
+                        <label>化石 ID <span style="color: #dc3545;">*</span></label>
+                        <input type="text" id="fossilId" placeholder="例如: F-001" required>
+                    </div>
+                    <div class="form-group">
+                        <label>化石名称 <span style="color: #dc3545;">*</span></label>
+                        <input type="text" id="fossilName" placeholder="例如: 霸王龙化石" required>
+                    </div>
+                    <div class="form-group">
+                        <label>描述 <span style="color: #dc3545;">*</span></label>
+                        <textarea id="fossilDescription" placeholder="详细描述化石的信息..."></textarea>
+                    </div>
+                    <button type="submit">✨ 上传化石</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>🔍 查询化石</h2>
+                <div class="query-section">
+                    <input type="text" id="queryId" placeholder="输入化石 ID...">
+                    <button onclick="queryFossil()">查询</button>
+                </div>
+                <div id="queryResult" class="query-result">
+                    <span style="color: #999;">💡 输入化石 ID 后点击查询</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 我的化石收藏</h2>
+            <div id="fossilList" class="fossil-list">
+                <div class="loading">🔄 加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        let GITHUB_CONFIG = null;
+
+        function showMessage(message, type = 'success') {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${type}`;
+            msgDiv.textContent = message;
+            document.body.appendChild(msgDiv);
+            setTimeout(() => msgDiv.remove(), 3000);
+        }
+
+        async function getAllFossils() {
+            if (!GITHUB_CONFIG) return [];
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.GITHUB_USERNAME}/${GITHUB_CONFIG.GITHUB_REPO}/issues?labels=fossil&state=open`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `token ${GITHUB_CONFIG.GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                if (!response.ok) throw new Error('获取失败');
+                const issues = await response.json();
+                const fossils = [];
+                for (const issue of issues) {
+                    const match = issue.body.match(/```json\n([\s\S]*?)\n```/);
+                    if (match) {
+                        try {
+                            const fossilData = JSON.parse(match[1]);
+                            fossils.push({ ...fossilData, issueNumber: issue.number });
+                        } catch (e) {}
+                    }
+                }
+                return fossils;
+            } catch (error) {
+                console.error('加载化石失败:', error);
+                return [];
+            }
+        }
+
+        async function saveFossilToGitHub(fossil) {
+            const issueTitle = `Fossil: ${fossil.id}`;
+            const issueBody = `化石信息\n\`\`\`json\n${JSON.stringify(fossil, null, 2)}\n\`\`\``;
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.GITHUB_USERNAME}/${GITHUB_CONFIG.GITHUB_REPO}/issues`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${GITHUB_CONFIG.GITHUB_TOKEN}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title: issueTitle, body: issueBody, labels: ['fossil'] })
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message);
+            }
+            return await response.json();
+        }
+
+        async function deleteFossil(issueNumber, fossilId) {
+            if (!confirm(`确定要删除化石 "${fossilId}" 吗？此操作不可恢复！`)) return;
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.GITHUB_USERNAME}/${GITHUB_CONFIG.GITHUB_REPO}/issues/${issueNumber}`;
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${GITHUB_CONFIG.GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ state: 'closed' })
+                });
+                if (!response.ok) throw new Error('删除失败');
+                showMessage(`✅ 化石 "${fossilId}" 已删除`, 'success');
+                displayFossils();
+            } catch (error) {
+                showMessage(`❌ 删除失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function displayFossils() {
+            const fossilList = document.getElementById('fossilList');
+            fossilList.innerHTML = '<div class="loading">🔄 加载中...</div>';
+            const fossils = await getAllFossils();
+            if (fossils.length === 0) {
+                fossilList.innerHTML = '<div class="empty-state">📭 暂无化石记录，上传您的第一块化石吧！</div>';
+                return;
+            }
+            fossilList.innerHTML = fossils.map(fossil => `
+                <div class="fossil-item">
+                    <span class="fossil-id">🆔 ${escapeHtml(fossil.id)}</span>
+                    <div class="fossil-name">${escapeHtml(fossil.name)}</div>
+                    <div class="fossil-description">${escapeHtml(fossil.description)}</div>
+                    <button class="delete-btn" onclick="deleteFossil(${fossil.issueNumber}, '${escapeHtml(fossil.id)}')">🗑️ 删除</button>
+                </div>
+            `).join('');
+        }
+
+        async function queryFossil() {
+            const queryId = document.getElementById('queryId').value.trim();
+            const queryResult = document.getElementById('queryResult');
+            if (!queryId) {
+                queryResult.innerHTML = '<span style="color: #dc3545;">⚠️ 请输入化石 ID</span>';
+                return;
+            }
+            queryResult.innerHTML = '<span>🔍 查询中...</span>';
+            const fossils = await getAllFossils();
+            const fossil = fossils.find(f => f.id === queryId);
+            if (fossil) {
+                queryResult.innerHTML = `
+                    <div style="font-weight: bold; color: #1a1a2e; margin-bottom: 10px;">✅ 找到化石</div>
+                    <div><strong>ID:</strong> ${escapeHtml(fossil.id)}</div>
+                    <div><strong>名称:</strong> ${escapeHtml(fossil.name)}</div>
+                    <div><strong>描述:</strong> ${escapeHtml(fossil.description)}</div>
+                    <div style="margin-top: 10px; font-size: 12px; color: #999;">📅 录入时间: ${new Date(fossil.createdAt).toLocaleString()}</div>
+                `;
+            } else {
+                queryResult.innerHTML = '<span style="color: #dc3545;">❌ 未找到该化石，请检查 ID 是否正确</span>';
+            }
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const fossilId = document.getElementById('fossilId').value.trim();
+            const fossilName = document.getElementById('fossilName').value.trim();
+            const fossilDescription = document.getElementById('fossilDescription').value.trim();
+            if (!fossilId || !fossilName) {
+                showMessage('请填写化石 ID 和名称', 'error');
+                return;
+            }
+            const existingFossils = await getAllFossils();
+            if (existingFossils.some(f => f.id === fossilId)) {
+                showMessage(`化石 ID "${fossilId}" 已存在，请使用不同的 ID`, 'error');
+                return;
+            }
+            const newFossil = {
+                id: fossilId,
+                name: fossilName,
+                description: fossilDescription || '无描述',
+                createdAt: new Date().toISOString()
+            };
+            try {
+                await saveFossilToGitHub(newFossil);
+                showMessage(`✅ 化石 "${fossilName}" 上传成功！`, 'success');
+                document.getElementById('uploadForm').reset();
+                displayFossils();
+            } catch (error) {
+                showMessage(`❌ 上传失败: ${error.message}`, 'error');
+            }
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        window.onload = function() {
+            if (window.CONFIG) {
+                GITHUB_CONFIG = window.CONFIG;
+                displayFossils();
+            } else {
+                setTimeout(() => {
+                    if (window.CONFIG) {
+                        GITHUB_CONFIG = window.CONFIG;
+                        displayFossils();
+                    } else {
+                        document.getElementById('fossilList').innerHTML = '<div class="empty-state">⚠️ 配置加载失败，请检查部署配置</div>';
+                    }
+                }, 500);
+            }
+        };
+    </script>
+</body>
+</html>
