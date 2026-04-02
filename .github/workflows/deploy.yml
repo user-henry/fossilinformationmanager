@@ -1,0 +1,48 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Create config.js
+        run: |
+          echo "// 自动生成的配置文件 - 部署时注入" > config.js
+          echo "window.CONFIG = {" >> config.js
+          echo "    GITHUB_USERNAME: 'user-henry'," >> config.js
+          echo "    GITHUB_REPO: 'fossilinformationmanager'," >> config.js
+          echo "    GITHUB_TOKEN: '${{ secrets.TOKEN }}'" >> config.js
+          echo "};" >> config.js
+          echo "console.log('✅ 配置已加载');" >> config.js
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
