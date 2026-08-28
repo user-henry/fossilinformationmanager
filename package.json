@@ -1,5 +1,12 @@
 {
   "name": "fossil-information-manager",
-  "version": "1.0.0",
-  "description": "化石信息管理器"
+  "version": "2.0.0",
+  "description": "化石信息管理器（Cloudflare Workers 中转 GitHub Issues）",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.119.0"
+  }
 }
