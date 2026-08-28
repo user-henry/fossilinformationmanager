@@ -1,0 +1,11 @@
+name = "fossilinformationmanager"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# 自定义域名（zone: nflshcchat.cc.cd）
+routes = [
+  { pattern = "fossilinformationmanager.nflshcchat.cc.cd", custom_domain = true, zone_id = "024d27157df2ad12f4b60a86588c9d4c" }
+]
+
+[observability]
+enabled = true
