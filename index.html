@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>化石信息管理器 | Fossil Information Manager</title>
     <style>
-        /* 样式保持不变，和之前一样 */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -176,9 +175,9 @@
         </div>
     </div>
 
-    <script src="config.js"></script>
     <script>
-        let GITHUB_CONFIG = null;
+        // Cloudflare Worker 中转站地址（不再需要 config.js / GitHub Token）
+        const WORKER_URL = 'https://fossilinformationmanager.nflshcchat.cc.cd';
 
         function showMessage(message, type = 'success') {
             const msgDiv = document.createElement('div');
@@ -188,69 +187,40 @@
             setTimeout(() => msgDiv.remove(), 3000);
         }
 
+        async function api(path, options = {}) {
+            const response = await fetch(`${WORKER_URL}${path}`, {
+                ...options,
+                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || `请求失败 (${response.status})`);
+            }
+            return data;
+        }
+
         async function getAllFossils() {
-            if (!GITHUB_CONFIG) return [];
             try {
-                const url = `https://api.github.com/repos/${GITHUB_CONFIG.GITHUB_USERNAME}/${GITHUB_CONFIG.GITHUB_REPO}/issues?labels=fossil&state=open`;
-                const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `token ${GITHUB_CONFIG.GITHUB_TOKEN}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
-                if (!response.ok) throw new Error('获取失败');
-                const issues = await response.json();
-                const fossils = [];
-                for (const issue of issues) {
-                    const match = issue.body.match(/```json\n([\s\S]*?)\n```/);
-                    if (match) {
-                        try {
-                            const fossilData = JSON.parse(match[1]);
-                            fossils.push({ ...fossilData, issueNumber: issue.number });
-                        } catch (e) {}
-                    }
-                }
-                return fossils;
+                const data = await api('/api/fossils');
+                return data.fossils || [];
             } catch (error) {
                 console.error('加载化石失败:', error);
                 return [];
             }
         }
 
-        async function saveFossilToGitHub(fossil) {
-            const issueTitle = `Fossil: ${fossil.id}`;
-            const issueBody = `化石信息\n\`\`\`json\n${JSON.stringify(fossil, null, 2)}\n\`\`\``;
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.GITHUB_USERNAME}/${GITHUB_CONFIG.GITHUB_REPO}/issues`;
-            const response = await fetch(url, {
+        async function saveFossil(fossil) {
+            const data = await api('/api/fossils', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `token ${GITHUB_CONFIG.GITHUB_TOKEN}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ title: issueTitle, body: issueBody, labels: ['fossil'] })
+                body: JSON.stringify(fossil)
             });
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message);
-            }
-            return await response.json();
+            return data;
         }
 
         async function deleteFossil(issueNumber, fossilId) {
             if (!confirm(`确定要删除化石 "${fossilId}" 吗？此操作不可恢复！`)) return;
             try {
-                const url = `https://api.github.com/repos/${GITHUB_CONFIG.GITHUB_USERNAME}/${GITHUB_CONFIG.GITHUB_REPO}/issues/${issueNumber}`;
-                const response = await fetch(url, {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': `token ${GITHUB_CONFIG.GITHUB_TOKEN}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ state: 'closed' })
-                });
-                if (!response.ok) throw new Error('删除失败');
+                await api(`/api/fossils/${issueNumber}`, { method: 'DELETE' });
                 showMessage(`✅ 化石 "${fossilId}" 已删除`, 'success');
                 displayFossils();
             } catch (error) {
@@ -316,11 +286,10 @@
             const newFossil = {
                 id: fossilId,
                 name: fossilName,
-                description: fossilDescription || '无描述',
-                createdAt: new Date().toISOString()
+                description: fossilDescription || '无描述'
             };
             try {
-                await saveFossilToGitHub(newFossil);
+                await saveFossil(newFossil);
                 showMessage(`✅ 化石 "${fossilName}" 上传成功！`, 'success');
                 document.getElementById('uploadForm').reset();
                 displayFossils();
@@ -336,19 +305,7 @@
         }
 
         window.onload = function() {
-            if (window.CONFIG) {
-                GITHUB_CONFIG = window.CONFIG;
-                displayFossils();
-            } else {
-                setTimeout(() => {
-                    if (window.CONFIG) {
-                        GITHUB_CONFIG = window.CONFIG;
-                        displayFossils();
-                    } else {
-                        document.getElementById('fossilList').innerHTML = '<div class="empty-state">⚠️ 配置加载失败，请检查部署配置</div>';
-                    }
-                }, 500);
-            }
+            displayFossils();
         };
     </script>
 </body>
